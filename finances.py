@@ -27,8 +27,16 @@ def create_file():
 
 class Bill:
     def __init__(self, name, category, essential, entry_date, total):
+        if name == None:
+            raise ValueError('Name not defined.')
+        if category == None:
+            raise ValueError('Category not defined.')
+        if entry_date == None:
+            raise ValueError('Date not defined.')
+        if total == None:
+            raise ValueError('Total not defined.')
         if not (category in CATEGORY_CHOICES):
-            raise ValueError('Category has not a valid value.')
+            raise ValueError('Category not valid.')
         self.name = name
         self.category = category
         self.essential = essential
@@ -174,17 +182,25 @@ def filter_table(**kwargs):
     finance_table['Date'] = finance_table['Date'].dt.strftime(DATE_FORMAT)
     return finance_table
 
-def add_bill(entry_bill):
+def create_bill_dummy(**kwargs):
+    name = kwargs['name'] if 'name' in kwargs.keys() else None
+    category = kwargs['category'] if 'category' in kwargs.keys() else None
+    essential = kwargs['essential'] if 'essential' in kwargs.keys() else None
+    date =  kwargs['date'] if 'date' in kwargs.keys() else None
+    total = kwargs['total'] if 'total' in kwargs.keys() else None
+    return Bill(name, category, essential, date, total)
+
+def add_bill(**kwargs):
     '''Add bill to csv file and return added bill as Bill object. entry_bill must be [name, category, essential, date, total]'''
-    bill = Bill(*entry_bill)
+    bill = create_bill_dummy(**kwargs)
     with open(FILE_PATH, 'a') as file:
         writer = csv.DictWriter(file, CSV_FIELDS, delimiter='\t')
         writer.writerow(bill.to_dict())
     return bill
 
-def delete_bill(exit_bill):
+def delete_bill(**kwargs):
     '''Remove bill from csv fil end return deleted bill as Bill object. exit_bill must be [name, category, essential, date, total] '''
-    bill = Bill(*exit_bill)
+    bill = create_bill_dummy(**kwargs)
     with open(FILE_PATH, 'r') as file:
         table = [row for row in csv.DictReader(file, CSV_FIELDS, delimiter='\t') if (row['Name'] != bill.name) or (row['Category'] != bill.category) or (row['Essential'] != bill.essential) or (row['Date'] != str(bill.entry_date)) or (row['Total'] != str(bill.total)) ]
     with open(FILE_PATH, 'w') as file:
@@ -211,8 +227,8 @@ parser = ArgumentParser(
     prog='finances',
     description='Manage personal finances.'
 )
-parser.add_argument('--add', '-a', nargs=5, required=False, help=f'Entry value, positive for deposits or negative for expenses. [Name Category Essential Date Total]. For Category, it must be one of those options {CATEGORY_CHOICES}.')
-parser.add_argument('--delete', '-d', nargs=5, required=False, help='Delete bill. [Name Category Essential Date Total].')
+parser.add_argument('--add', '-a',action='store_true', required=False, help=f'Add bill. Needs to defiend NAME CATEGORY ESSENTIAL DATE TOTAL commands.')
+parser.add_argument('--delete', '-d', action='store_true', required=False, help='Delete bill. Needs to defiend NAME CATEGORY ESSENTIAL DATE TOTAL commands.')
 parser.add_argument('--show', '-s', action='store_true', required=False, help='Show all table.')
 parser.add_argument('--name', '-N', required=False, help='Filter for --show , bills whose name contain the argument.')
 parser.add_argument('--category', '-C', required=False, help=f'Filter for --show, bills whose category contain the argument. It must be one of those options {CATEGORY_CHOICES}.')
@@ -226,13 +242,13 @@ args = parser.parse_args()
 
 create_file()
 
-if args.delete != None:
-    bill = delete_bill(args.delete)
+if args.delete:
+    bill = delete_bill(name=args.name, category=args.category, essential=args.essential, date=args.date, total=args.total)
     finance_table=filter_table(name=bill.name, category=bill.category, essential=bill.essential, date=bill.entry_date.strftime(DATE_FORMAT), total=str(bill.total))
     print(finance_table)
     print('Deleted:', bill.to_dict())
-elif args.add !=None:
-    bill = add_bill(args.add)
+elif args.add:
+    bill = add_bill(name=args.name, category=args.category, essential=args.essential, date=args.date, total=args.total)
     finance_table=filter_table(name=bill.name, category=bill.category, essential=bill.essential, date=bill.entry_date.strftime(DATE_FORMAT), total=str(bill.total))
     print(finance_table)
 elif args.show:
