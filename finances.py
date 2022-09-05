@@ -11,19 +11,24 @@ import pandas as pd
 
 from ExactCalc.ExactFloat import ExactFloat
 
-FILE_PATH =  os.path.expanduser('~/Documents/finances/finance.csv')
+FILE_PATH_FINANCES = os.path.expanduser('~/Documents/finances/finance.csv')
+FILE_PATH_SAVINGS = os.path.expanduser('~/Documents/finances/savings.csv')
 
-CSV_FIELDS = ['Name', 'Category', 'Essential', 'Date', 'Total']
+
+CSV_FINANCES_FIELDS = ['Name', 'Category', 'Essential', 'Date', 'Total']
+CSV_SAVING_FIELDS = ['Name', 'Date', 'Total']
 CATEGORY_CHOICES = ['Housing', 'Food', 'Transport', 'Taxes', 'Donations', 'Insurance', 'Savings/Investments', 'Health', 'Services', 'Personal', 'Recreation', 'Debts', 'Incomes']
 DATE_FORMAT = "%d/%m/%Y"
 
+
 def create_file():
     '''Create files in PATH and create directories if they doesn't exist'''
-    if not os.path.exists(FILE_PATH):
-        os.makedirs(os.path.dirname(FILE_PATH), exist_ok=True)
-        with open(FILE_PATH, 'w') as file:
-            writer = csv.writer(file, delimiter='\t')
-            writer.writerow(CSV_FIELDS)
+    for path, fields in ((FILE_PATH_FINANCES, CSV_FINANCES_FIELDS), (FILE_PATH_SAVINGS, CSV_SAVING_FIELDS)):
+        if not os.path.exists(path):
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            with open(path, 'w') as file:
+                writer = csv.writer(file, delimiter='\t')
+                writer.writerow(fields)
 
 class Bill:
     def __init__(self, name, category, essential, entry_date, total):
@@ -55,6 +60,27 @@ class Bill:
 
     def __str__(self):
         return f'{self.name}\t{self.category}\t{self.essential}\t{self.entry_date.strftime(DATE_FORMAT)}\t{self.total}'
+
+class Saving:
+    def __init__(self, name, total):
+        if name == None:
+            raise ValueError('Name not defined.')
+        if total == None:
+            raise ValueError('Total not defined.')
+        self.name = name
+        self.entry_date = datetime.date.today()
+        self.total = ExactFloat(total)
+
+    def to_dict(self):
+        return {
+            'Name': self.name,
+            'Date': self.entry_date,
+            'Total': str(self.total)
+        }
+
+    def __str__(self):
+        return f'{self.name}\t{self.entry_date.strftime(DATE_FORMAT)}\t{self.total}'
+
 
 def validate_range(str_value):
     '''Check if entry data for date or total is in correct format and return the value(s) and comparision symbol(s), if not return False.'''
@@ -158,14 +184,14 @@ def get_total_filter(str_total, table):
     else:
         raise ValueError('Total filter in wrong format.')
 
-def filter_table(**kwargs):
+def filter_bill_table(**kwargs):
     '''Filter pandas DataFrame by Name, Category, Essential, Date and/or Total, return DataFrame'''
     name = kwargs['name'] if 'name' in kwargs.keys() else None
     category = kwargs['category'] if 'category' in kwargs.keys() else None
     essential = kwargs['essential'] if 'essential' in kwargs.keys() else None
     date =  kwargs['date'] if 'date' in kwargs.keys() else None
     total = kwargs['total'] if 'total' in kwargs.keys() else None
-    finance_table = pd.read_csv(FILE_PATH, sep='\t', header=0)
+    finance_table = pd.read_csv(FILE_PATH_FINANCES, sep='\t', header=0)
     '''Make column Date into date type'''
     finance_table['Date'] = pd.to_datetime(finance_table['Date'])
     if name != None:
@@ -191,30 +217,30 @@ def create_bill_dummy(**kwargs):
     return Bill(name, category, essential, date, total)
 
 def add_bill(**kwargs):
-    '''Add bill to csv file and return added bill as Bill object. entry_bill must be [name, category, essential, date, total]'''
+    '''Add bill to csv file and return added bill as Bill object. entry bill must be [name, category, essential, date, total]'''
     bill = create_bill_dummy(**kwargs)
-    with open(FILE_PATH, 'a') as file:
-        writer = csv.DictWriter(file, CSV_FIELDS, delimiter='\t')
+    with open(FILE_PATH_FINANCES, 'a') as file:
+        writer = csv.DictWriter(file, CSV_FINANCES_FIELDS, delimiter='\t')
         writer.writerow(bill.to_dict())
     return bill
 
 def delete_bill(**kwargs):
-    '''Remove bill from csv fil end return deleted bill as Bill object. exit_bill must be [name, category, essential, date, total] '''
+    '''Remove bill from csv fil end return deleted bill as Bill object. exit bill must be [name, category, essential, date, total] '''
     bill = create_bill_dummy(**kwargs)
-    with open(FILE_PATH, 'r') as file:
-        table = [row for row in csv.DictReader(file, CSV_FIELDS, delimiter='\t') if (row['Name'] != bill.name) or (row['Category'] != bill.category) or (row['Essential'] != bill.essential) or (row['Date'] != str(bill.entry_date)) or (row['Total'] != str(bill.total)) ]
-    with open(FILE_PATH, 'w') as file:
-        writer = csv.DictWriter(file, CSV_FIELDS, delimiter='\t')
+    with open(FILE_PATH_FINANCES, 'r') as file:
+        table = [row for row in csv.DictReader(file, CSV_FINANCES_FIELDS, delimiter='\t') if (row['Name'] != bill.name) or (row['Category'] != bill.category) or (row['Essential'] != bill.essential) or (row['Date'] != str(bill.entry_date)) or (row['Total'] != str(bill.total)) ]
+    with open(FILE_PATH_FINANCES, 'w') as file:
+        writer = csv.DictWriter(file, CSV_FINANCES_FIELDS, delimiter='\t')
         writer.writerows(table)
     return bill
 
-def get_report(**kwargs):
+def get_bill_report(**kwargs):
     '''Get month DataFrame. Return DataFrame and sum of total DataFrame column'''
     category = kwargs['category'] if 'category' in kwargs.keys() else None
     date =  kwargs['date'] if 'date' in kwargs.keys() else None
     if date != None:
         date1, date2 = get_range_month(date)
-        finance_table = filter_table(category=category, date=f'{date1}~{date2}')
+        finance_table = filter_bill_table(category=category, date=f'{date1}~{date2}')
         total_list = [ExactFloat(str(total)) for total in finance_table['Total'].to_list()]
         total = ExactFloat('0')
         for value in total_list:
@@ -223,11 +249,67 @@ def get_report(**kwargs):
     else:
         raise ValueError('Total filter in wrong format.')
 
+def filter_saving_table(**kwargs):
+    '''Filter pandas DataFrame by Name, Date and/or Total, return DataFrame'''
+    name = kwargs['name'] if 'name' in kwargs.keys() else None
+    date =  kwargs['date'] if 'date' in kwargs.keys() else None
+    total = kwargs['total'] if 'total' in kwargs.keys() else None
+    saving_table = pd.read_csv(FILE_PATH_SAVINGS, sep='\t', header=0)
+    '''Make column Date into date type'''
+    saving_table['Date'] = pd.to_datetime(saving_table['Date'])
+    if name != None:
+        saving_table = saving_table[saving_table['Name'].str.contains(name)]
+    if date != None:
+        saving_table = get_date_filter(date, saving_table)
+    if total != None:
+        saving_table = get_total_filter(total, saving_table)
+    saving_table = saving_table.sort_values(by='Date')
+    saving_table['Date'] = saving_table['Date'].dt.strftime(DATE_FORMAT)
+    return saving_table
+
+def create_saving_dummy(**kwargs):
+    name = kwargs['name'] if 'name' in kwargs.keys() else None
+    total = kwargs['total'] if 'total' in kwargs.keys() else None
+    return Saving(name, total)
+
+def add_saving(**kwargs):
+    '''Add saving to csv file and return added saving as Saving object. entry saving must be [name, total]'''
+    saving = create_saving_dummy(**kwargs)
+    with open(FILE_PATH_SAVINGS, 'a') as file:
+        writer = csv.DictWriter(file, CSV_SAVING_FIELDS, delimiter='\t')
+        writer.writerow(saving.to_dict())
+    return saving
+
+def delete_saving(**kwargs):
+    '''Remove saving from csv fil end return deleted saving as Saving object. exit saving must be [name, date, total] '''
+    saving = create_saving_dummy(**kwargs)
+    with open(FILE_PATH_SAVINGS, 'r') as file:
+        table = [row for row in csv.DictReader(file, CSV_SAVING_FIELDS, delimiter='\t') if (row['Name'] != saving.name) or (row['Date'] != str(saving.entry_date)) or (row['Total'] != str(saving.total)) ]
+    with open(FILE_PATH_SAVINGS, 'w') as file:
+        writer = csv.DictWriter(file, CSV_SAVING_FIELDS, delimiter='\t')
+        writer.writerows(table)
+    return saving
+
+def get_saving_report():
+    '''Get summary DataFrame. Return DataFrame of total savings'''
+    dict_savings = dict()
+    with open(FILE_PATH_SAVINGS, 'r') as file:
+        table = [row for row in csv.DictReader(file, CSV_SAVING_FIELDS, delimiter='\t')][1:]
+    for row in table:
+        total = ExactFloat(row['Total'])
+        if row['Name'] in dict_savings.keys():
+            dict_savings[row['Name']] += total
+        else:
+            dict_savings[row['Name']] = total
+    return pd.DataFrame.from_dict(dict_savings, orient='index', columns=['Total'])
+
 parser = ArgumentParser(
     prog='finances',
     description='Manage personal finances.'
 )
-parser.add_argument('--add', '-a',action='store_true', required=False, help=f'Add bill. Needs to defiend NAME CATEGORY ESSENTIAL DATE TOTAL commands.')
+parser.add_argument('--bill', action='store_true', required=False, help=f'Select operations for bill.')
+parser.add_argument('--saving', action='store_true', required=False, help='Select operations for savings.')
+parser.add_argument('--add', '-a', action='store_true', required=False, help=f'Add bill. Needs to defiend NAME CATEGORY ESSENTIAL DATE TOTAL commands.')
 parser.add_argument('--delete', '-d', action='store_true', required=False, help='Delete bill. Needs to defiend NAME CATEGORY ESSENTIAL DATE TOTAL commands.')
 parser.add_argument('--show', '-s', action='store_true', required=False, help='Show all table.')
 parser.add_argument('--name', '-N', required=False, help='Filter for --show , bills whose name contain the argument.')
@@ -242,33 +324,54 @@ args = parser.parse_args()
 
 create_file()
 
-if args.delete:
-    bill = delete_bill(name=args.name, category=args.category, essential=args.essential, date=args.date, total=args.total)
-    finance_table=filter_table(name=bill.name, category=bill.category, essential=bill.essential, date=bill.entry_date.strftime(DATE_FORMAT), total=str(bill.total))
-    print(finance_table)
-    print('Deleted:', bill.to_dict())
-elif args.add:
-    bill = add_bill(name=args.name, category=args.category, essential=args.essential, date=args.date, total=args.total)
-    finance_table=filter_table(name=bill.name, category=bill.category, essential=bill.essential, date=bill.entry_date.strftime(DATE_FORMAT), total=str(bill.total))
-    print(finance_table)
-elif args.show:
-    finance_table = filter_table(name=args.name, category=args.category, essential=args.essential, date=args.date, total=args.total)
-    print(finance_table)
-elif args.report:
-    finance_table, total = get_report(category=args.category, date=args.date)
-    print(finance_table)
-    print(f'Total report: {total}')
-elif args.export:
-    path = args.export[0]
-    finance_table, total = get_report(category=args.category, date=args.date)
-    category = f'_{args.category}'
-    if args.category == None:
-        category = ''
-    if path[-1] != '/':
-        path = f'{path}/'
-    month, year = args.date.split('/')
-    finance_table['Date'] = pd.to_datetime(finance_table['Date'], format='%d/%m/%Y')
-    finance_table['Date'] = finance_table['Date'].dt.strftime('%Y-%m-%d')
-    finance_table.to_csv(f'{path}finance_report{category}_{month}-{year}.csv', sep='\t', index=False)
+if args.bill:
+    if args.delete:
+        bill = delete_bill(name=args.name, category=args.category, essential=args.essential, date=args.date, total=args.total)
+        finance_table=filter_bill_table(name=bill.name, category=bill.category, essential=bill.essential, date=bill.entry_date.strftime(DATE_FORMAT), total=str(bill.total))
+        print(finance_table)
+        print('Deleted:', bill.to_dict())
+    elif args.add:
+        bill = add_bill(name=args.name, category=args.category, essential=args.essential, date=args.date, total=args.total)
+        finance_table = filter_bill_table(name=bill.name, category=bill.category, essential=bill.essential, date=bill.entry_date.strftime(DATE_FORMAT), total=str(bill.total))
+        print(finance_table)
+    elif args.show:
+        finance_table = filter_bill_table(name=args.name, category=args.category, essential=args.essential, date=args.date, total=args.total)
+        print(finance_table)
+    elif args.report:
+        finance_table, total = get_bill_report(category=args.category, date=args.date)
+        print(finance_table)
+        print(f'Total report: {total}')
+    elif args.export:
+        path = args.export[0]
+        finance_table, total = get_bill_report(category=args.category, date=args.date)
+        category = f'_{args.category}'
+        if args.category == None:
+            category = ''
+        if path[-1] != '/':
+            path = f'{path}/'
+        month, year = args.date.split('/')
+        finance_table['Date'] = pd.to_datetime(finance_table['Date'], format='%d/%m/%Y')
+        finance_table['Date'] = finance_table['Date'].dt.strftime('%Y-%m-%d')
+        finance_table.to_csv(f'{path}finance_report{category}_{month}-{year}.csv', sep='\t', index=False)
+    else:
+        print('Error: Command failure')
+elif args.saving:
+    if args.delete:
+        saving = delete_saving(name=args.name, date=args.date, total=args.total)
+        finance_table=filter_bill_table(name=saving.name, date=saving.entry_date.strftime(DATE_FORMAT), total=str(saving.total))
+        print(finance_table)
+        print('Deleted:', saving.to_dict())
+    elif args.add:
+        saving = add_saving(name=args.name, total=args.total)
+        saving_table = filter_saving_table(name=saving.name, date=saving.entry_date.strftime(DATE_FORMAT), total=str(saving.total))
+        print(saving_table)
+    elif args.show:
+        saving_table = filter_saving_table(name=args.name, date=args.date, total=args.total)
+        print(saving_table)
+    elif args.report:
+        saving_table = get_saving_report()
+        print(saving_table)
+    else:
+        print('Error: Command failure')
 else:
     print('Error: Command failure')
