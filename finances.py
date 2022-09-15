@@ -309,7 +309,7 @@ parser = ArgumentParser(
 )
 parser.add_argument('--bill', action='store_true', required=False, help=f'Select operations for bill.')
 parser.add_argument('--saving', action='store_true', required=False, help='Select operations for savings.')
-parser.add_argument('--add', '-a', action='store_true', required=False, help=f'Add bill or saving. Needs to defiend {CSV_FINANCES_FIELDS} commands for bill. Needs to defiend {CSV_SAVING_FIELDS.remove("Date")} commands for saving.')
+parser.add_argument('--add', '-a', action='store_true', required=False, help=f'Add bill or saving. Needs to defiend {CSV_FINANCES_FIELDS} commands for bill. Needs to defiend {filter(lambda f: f!="Date", CSV_SAVING_FIELDS)} commands for saving.')
 parser.add_argument('--delete', '-d', action='store_true', required=False, help=f'Delete bill or saving. Needs to defiend {CSV_FINANCES_FIELDS} commands for bill. Needs to defiend {CSV_SAVING_FIELDS} commands for saving.')
 parser.add_argument('--show', '-s', action='store_true', required=False, help=f'Show all table of bill or saving.')
 parser.add_argument('--name', '-N', required=False, help=f'bill or saving name.')
