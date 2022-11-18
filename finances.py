@@ -62,13 +62,13 @@ class Bill:
         return f'{self.name}\t{self.category}\t{self.essential}\t{self.entry_date.strftime(DATE_FORMAT)}\t{self.total}'
 
 class Saving:
-    def __init__(self, name, total):
+    def __init__(self, name, entry_date, total):
         if name == None:
             raise ValueError('Name not defined.')
         if total == None:
             raise ValueError('Total not defined.')
         self.name = name
-        self.entry_date = datetime.date.today()
+        self.entry_date = entry_date
         self.total = ExactFloat(total)
 
     def to_dict(self):
@@ -184,13 +184,47 @@ def get_total_filter(str_total, table):
     else:
         raise ValueError('Total filter in wrong format.')
 
+def get_bill_search_parameters(**kwargs):
+    '''Create bill object with parameters given and ask for missing parameters'''
+    if kwargs['name']:
+        name = str(kwargs['name']).strip()
+    else:
+        name = input("Bill name: ").strip()
+        name = name if name else None
+    if kwargs['category']:
+        category = str(kwargs['category']).strip()
+    else:
+        print(f"Category options: {CATEGORY_CHOICES}")
+        category = input("Bill category: ").strip()
+        category = category if category else None
+    if kwargs['essential']:
+        essential = str(kwargs['essential']).strip()
+    else:
+        essential = input("Bill essential[Yes/No]: ").strip()
+        essential = essential if essential else None
+    if kwargs['date']:
+        date = str(kwargs['date']).strip()
+    else:
+        print(f'For dates in a range of greater than (>), greater or equal than (>=), smaller than (<), smaller or equal than (<=), adds its corresponding symbol at the start of the date as delimeters, and for a range between two dates, place the first date, then the symbol (~), and at the end the second date. Example 12/10/2021 for equal, >=12/10/2021 for grater or equal than, 12/10/2021~14/10/2021, for between the range.')
+        date = input("Bill date: ").strip()
+        date = date if date else None
+    if kwargs['total']:
+        total = str(kwargs['total']).strip()
+    else:
+        print(f'For total in a range of greater than (>), greater or equal than (>=), smaller than (<), smaller or equal than (<=), adds its corresponding symbol at the start of the quantity as delimeters, and for a range between two quantities, place the first quantity, then the symbol (~), and at the end the second quantity. Example 120.00 for equal, >=120.00 for grater or equal than, 120.00~150.00 for between the range.')
+        total = input("Bill total: ").strip()
+        total = total if total else None
+    return {'name':name, 'category':category, 'essential':essential, 'date':date, 'total':total}
+
+
 def filter_bill_table(**kwargs):
     '''Filter pandas DataFrame by Name, Category, Essential, Date and/or Total, return DataFrame'''
-    name = kwargs['name'] if 'name' in kwargs.keys() else None
-    category = kwargs['category'] if 'category' in kwargs.keys() else None
-    essential = kwargs['essential'] if 'essential' in kwargs.keys() else None
-    date =  kwargs['date'] if 'date' in kwargs.keys() else None
-    total = kwargs['total'] if 'total' in kwargs.keys() else None
+    filter_data = get_bill_search_parameters(**kwargs)
+    name = filter_data['name']
+    category = filter_data['category']
+    essential = filter_data['essential']
+    date =  filter_data['date']
+    total = filter_data['total']
     finance_table = pd.read_csv(FILE_PATH_FINANCES, sep='\t', header=0)
     '''Make column Date into date type'''
     finance_table['Date'] = pd.to_datetime(finance_table['Date'])
@@ -208,25 +242,45 @@ def filter_bill_table(**kwargs):
     finance_table['Date'] = finance_table['Date'].dt.strftime(DATE_FORMAT)
     return finance_table
 
-def create_bill_dummy(**kwargs):
-    name = kwargs['name'] if 'name' in kwargs.keys() else None
-    category = kwargs['category'] if 'category' in kwargs.keys() else None
-    essential = kwargs['essential'] if 'essential' in kwargs.keys() else None
-    date =  kwargs['date'] if 'date' in kwargs.keys() else None
-    total = kwargs['total'] if 'total' in kwargs.keys() else None
+def get_bill_parameters(**kwargs):
+    '''Create bill object with parameters given and ask for missing parameters'''
+    if kwargs['name']:
+        name = str(kwargs['name']).strip()
+    else:
+        name = input("Bill name: ").strip()
+        name = name if name else None
+    if kwargs['category']:
+        category = str(kwargs['category']).strip()
+    else:
+        print(f"Category options: {CATEGORY_CHOICES}")
+        category = input("Bill category: ").strip()
+        category = category if category else None
+    if kwargs['essential']:
+        essential = str(kwargs['essential']).strip()
+    else:
+        essential = input("Bill essential[Yes/No]: ").strip()
+        essential = essential if essential else None
+    if kwargs['date']:
+        date = str(kwargs['date']).strip()
+    else:
+        date = input("Bill date(dd/mm/yyyy): ").strip()
+        date = date if date else None
+    if kwargs['total']:
+        total = str(kwargs['total']).strip()
+    else:
+        total = input("Bill total: ").strip()
+        total = total if total else None
     return Bill(name, category, essential, date, total)
 
-def add_bill(**kwargs):
+def add_bill(bill):
     '''Add bill to csv file and return added bill as Bill object. entry bill must be [name, category, essential, date, total]'''
-    bill = create_bill_dummy(**kwargs)
     with open(FILE_PATH_FINANCES, 'a') as file:
         writer = csv.DictWriter(file, CSV_FINANCES_FIELDS, delimiter='\t')
         writer.writerow(bill.to_dict())
     return bill
 
-def delete_bill(**kwargs):
+def delete_bill(bill):
     '''Remove bill from csv fil end return deleted bill as Bill object. exit bill must be [name, category, essential, date, total] '''
-    bill = create_bill_dummy(**kwargs)
     with open(FILE_PATH_FINANCES, 'r') as file:
         table = [row for row in csv.DictReader(file, CSV_FINANCES_FIELDS, delimiter='\t') if (row['Name'] != bill.name) or (row['Category'] != bill.category) or (row['Essential'] != bill.essential) or (row['Date'] != str(bill.entry_date)) or (row['Total'] != str(bill.total)) ]
     with open(FILE_PATH_FINANCES, 'w') as file:
@@ -236,8 +290,17 @@ def delete_bill(**kwargs):
 
 def get_bill_report(**kwargs):
     '''Get month DataFrame. Return DataFrame and sum of total DataFrame column'''
-    category = kwargs['category'] if 'category' in kwargs.keys() else None
-    date =  kwargs['date'] if 'date' in kwargs.keys() else None
+    if kwargs['date']:
+        date = str(kwargs['date']).strip()
+    else:
+        date = input("Bill date(mm/yyyy): ").strip()
+        date = date if date else None
+    if kwargs['category']:
+        category = str(kwargs['category']).strip()
+    else:
+        print(f"Category options: {CATEGORY_CHOICES}")
+        category = input("Bill category: ").strip()
+        category = category if category else None
     if date != None:
         date1, date2 = get_range_month(date)
         finance_table = filter_bill_table(category=category, date=f'{date1}~{date2}')
@@ -249,11 +312,33 @@ def get_bill_report(**kwargs):
     else:
         raise ValueError('Total filter in wrong format.')
 
+def get_saving_search_parameters(**kwargs):
+    '''Create saving object with parameters given and ask for missing parameters'''
+    if kwargs['name']:
+        name = str(kwargs['name']).strip()
+    else:
+        name = input("Bill name: ").strip()
+        name = name if name else None
+    if kwargs['date']:
+        date = str(kwargs['date']).strip()
+    else:
+        print(f'For dates in a range of greater than (>), greater or equal than (>=), smaller than (<), smaller or equal than (<=), adds its corresponding symbol at the start of the date as delimeters, and for a range between two dates, place the first date, then the symbol (~), and at the end the second date. Example 12/10/2021 for equal, >=12/10/2021 for grater or equal than, 12/10/2021~14/10/2021, for between the range.')
+        date = input("Bill date: ").strip()
+        date = date if date else None
+    if kwargs['total']:
+        total = str(kwargs['total']).strip()
+    else:
+        print(f'For total in a range of greater than (>), greater or equal than (>=), smaller than (<), smaller or equal than (<=), adds its corresponding symbol at the start of the quantity as delimeters, and for a range between two quantities, place the first quantity, then the symbol (~), and at the end the second quantity. Example 120.00 for equal, >=120.00 for grater or equal than, 120.00~150.00 for between the range.')
+        total = input("Bill total: ").strip()
+        total = total if total else None
+    return {'name':name, 'date':date, 'total':total}
+
 def filter_saving_table(**kwargs):
     '''Filter pandas DataFrame by Name, Date and/or Total, return DataFrame'''
-    name = kwargs['name'] if 'name' in kwargs.keys() else None
-    date =  kwargs['date'] if 'date' in kwargs.keys() else None
-    total = kwargs['total'] if 'total' in kwargs.keys() else None
+    filter_data = get_saving_search_parameters(**kwargs)
+    name = filter_data['name']
+    date =  filter_data['date']
+    total = filter_data['total']
     saving_table = pd.read_csv(FILE_PATH_SAVINGS, sep='\t', header=0)
     '''Make column Date into date type'''
     saving_table['Date'] = pd.to_datetime(saving_table['Date'])
@@ -267,22 +352,35 @@ def filter_saving_table(**kwargs):
     saving_table['Date'] = saving_table['Date'].dt.strftime(DATE_FORMAT)
     return saving_table
 
-def create_saving_dummy(**kwargs):
-    name = kwargs['name'] if 'name' in kwargs.keys() else None
-    total = kwargs['total'] if 'total' in kwargs.keys() else None
-    return Saving(name, total)
+def get_saving_parameters(**kwargs):
+    '''Create saving object with parameters given and ask for missing parameters'''
+    if kwargs['name']:
+        name = str(kwargs['name']).strip()
+    else:
+        name = input("Bill name: ").strip()
+        name = name if name else None
+    if kwargs['date']:
+        split_date = str(kwargs['date']).strip('/')
+        date = datetime.date(int(split_date[2]), int(split_date[1]), int(split_date[0]))
+    else:
+        date = input("Bill date: ").strip()
+        date = date if date else datetime.date.today()
+    if kwargs['total']:
+        total = str(kwargs['total']).strip()
+    else:
+        total = input("Bill total: ").strip()
+        total = total if total else None
+    return Saving(name, date, total)
 
-def add_saving(**kwargs):
+def add_saving(saving):
     '''Add saving to csv file and return added saving as Saving object. entry saving must be [name, total]'''
-    saving = create_saving_dummy(**kwargs)
     with open(FILE_PATH_SAVINGS, 'a') as file:
         writer = csv.DictWriter(file, CSV_SAVING_FIELDS, delimiter='\t')
         writer.writerow(saving.to_dict())
     return saving
 
-def delete_saving(**kwargs):
+def delete_saving(saving):
     '''Remove saving from csv fil end return deleted saving as Saving object. exit saving must be [name, date, total] '''
-    saving = create_saving_dummy(**kwargs)
     with open(FILE_PATH_SAVINGS, 'r') as file:
         table = [row for row in csv.DictReader(file, CSV_SAVING_FIELDS, delimiter='\t') if (row['Name'] != saving.name) or (row['Date'] != str(saving.entry_date)) or (row['Total'] != str(saving.total)) ]
     with open(FILE_PATH_SAVINGS, 'w') as file:
@@ -303,6 +401,8 @@ def get_saving_report():
             dict_savings[row['Name']] = total
     return pd.DataFrame.from_dict(dict_savings, orient='index', columns=['Total'])
 
+
+
 parser = ArgumentParser(
     prog='finances',
     description='Manage personal finances.'
@@ -311,7 +411,7 @@ parser.add_argument('--bill', action='store_true', required=False, help=f'Select
 parser.add_argument('--saving', action='store_true', required=False, help='Select operations for savings.')
 parser.add_argument('--add', '-a', action='store_true', required=False, help=f'Add bill or saving. Needs to defiend {CSV_FINANCES_FIELDS} commands for bill. Needs to defiend {filter(lambda f: f!="Date", CSV_SAVING_FIELDS)} commands for saving.')
 parser.add_argument('--delete', '-d', action='store_true', required=False, help=f'Delete bill or saving. Needs to defiend {CSV_FINANCES_FIELDS} commands for bill. Needs to defiend {CSV_SAVING_FIELDS} commands for saving.')
-parser.add_argument('--show', '-s', action='store_true', required=False, help=f'Show all table of bill or saving.')
+parser.add_argument('--show', '-s', action='store_true', required=False, help=f'Show all table of bill or saving. In guided filter click enter without filling for fields to not considere in filter.')
 parser.add_argument('--name', '-N', required=False, help=f'bill or saving name.')
 parser.add_argument('--category', '-C', required=False, help=f'bill category. It must be one of those options {CATEGORY_CHOICES}.')
 parser.add_argument('--essential', '-E', required=False, help=f'bill essential value.')
@@ -326,12 +426,14 @@ create_file()
 
 if args.bill:
     if args.delete:
-        bill = delete_bill(name=args.name, category=args.category, essential=args.essential, date=args.date, total=args.total)
+        bill = get_bill_parameters(name=args.name, category=args.category, essential=args.essential, date=args.date, total=args.total)
+        bill = delete_bill(bill)
         finance_table=filter_bill_table(name=bill.name, category=bill.category, essential=bill.essential, date=bill.entry_date.strftime(DATE_FORMAT), total=str(bill.total))
         print(finance_table)
         print('Deleted:', bill.to_dict())
     elif args.add:
-        bill = add_bill(name=args.name, category=args.category, essential=args.essential, date=args.date, total=args.total)
+        bill = get_bill_parameters(name=args.name, category=args.category, essential=args.essential, date=args.date, total=args.total)
+        bill = add_bill(bill)
         finance_table = filter_bill_table(name=bill.name, category=bill.category, essential=bill.essential, date=bill.entry_date.strftime(DATE_FORMAT), total=str(bill.total))
         print(finance_table)
     elif args.show:
@@ -357,12 +459,14 @@ if args.bill:
         print('Error: Command failure')
 elif args.saving:
     if args.delete:
-        saving = delete_saving(name=args.name, date=args.date, total=args.total)
-        finance_table=filter_bill_table(name=saving.name, date=saving.entry_date.strftime(DATE_FORMAT), total=str(saving.total))
+        saving = get_saving_parameters(name=args.name, date=args.date, total=args.total)
+        saving = delete_saving(saving)
+        finance_table=filter_saving_table(name=saving.name, date=saving.entry_date.strftime(DATE_FORMAT), total=str(saving.total))
         print(finance_table)
         print('Deleted:', saving.to_dict())
     elif args.add:
-        saving = add_saving(name=args.name, total=args.total)
+        saving = get_saving_parameters(name=args.name, date=args.date, total=args.total)
+        saving = add_saving(saving)
         saving_table = filter_saving_table(name=saving.name, date=saving.entry_date.strftime(DATE_FORMAT), total=str(saving.total))
         print(saving_table)
     elif args.show:
